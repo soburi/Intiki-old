@@ -39,7 +39,6 @@ using namespace llvm;
 #define DPUT(x)
 #define DFUN(x)
 #define DVAL(x)
-
 #endif
 
 int AppErr = 0;
@@ -120,7 +119,7 @@ void IntikiASTConsumer::HandleTranslationUnit(ASTContext& Context)
     buf[6] = buf[7]; \
     buf[7] = x; \
     }
-void IntikiUtil::UncommentLineDirectiveAndWrite(std::ofstream& ostr, const char* data, int size)
+void IntikiUtil::UncommentLineDirectiveAndWrite(ofstream& ostr, const char* data, int size)
 {
     DFUN();
     char buf[8];
@@ -151,7 +150,7 @@ void IntikiUtil::UncommentLineDirectiveAndWrite(std::ofstream& ostr, const char*
     buf[4] = buf[5]; \
     buf[5] = x; \
     }
-void IntikiUtil::CommentLineDirectiveAndWrite(std::ofstream& ostr, const char* data, int size)
+void IntikiUtil::CommentLineDirectiveAndWrite(ofstream& ostr, const char* data, int size)
 {
     DFUN();
     char buf[6];
@@ -174,11 +173,11 @@ void IntikiUtil::CommentLineDirectiveAndWrite(std::ofstream& ostr, const char* d
     ostr.write(buf, sizeof(buf)-1 );
 }
 
-void IntikiUtil::FilterAndBackup(const string srcfile, const string postfix, void (*filterfunc)(std::ofstream&,const char*,int) )
+void IntikiUtil::FilterAndBackup(const string srcfile, const string postfix, void (*filterfunc)(ofstream&,const char*,int) )
 {
     DFUN();
     DPUT(1);
-    std::ifstream original;
+    ifstream original;
 
     DVAL(srcfile);
     original.open(srcfile.c_str(), ios::binary);
@@ -195,17 +194,17 @@ void IntikiUtil::FilterAndBackup(const string srcfile, const string postfix, voi
     delete[] buf;
 }
 
-void IntikiUtil::FilterAndBackup(const char* buf, const int size, const string srcfile, const string postfix, void (*filterfunc)(std::ofstream&,const char*,int) )
+void IntikiUtil::FilterAndBackup(const char* buf, const int size, const string srcfile, const string postfix, void (*filterfunc)(ofstream&,const char*,int) )
 {
     DFUN();
     DPUT(2);
     int rc = 0;
     string backup = srcfile + postfix;
 
-    rc = std::remove( backup.c_str() );
-    rc = std::rename(srcfile.c_str(), backup.c_str() );
+    rc = remove( backup.c_str() );
+    rc = rename(srcfile.c_str(), backup.c_str() );
     
-    std::ofstream filtered;
+    ofstream filtered;
 
     filtered.open(srcfile.c_str(), ios::binary);
 
@@ -229,7 +228,7 @@ void IntikiFrontendAction::EndSourceFileAction()
     vector<TranslateEntry>& translatelist = visitor.get()->getTranslateInfo();
     
     string srcfile = visitor.get()->getMainFileName();
-    std::ifstream original;
+    ifstream original;
 
     original.open(srcfile, ios::binary);
 
@@ -240,7 +239,7 @@ void IntikiFrontendAction::EndSourceFileAction()
     char* buf = NULL;
     int size = 0;
 
-    std::vector<char> buffer(0);
+    vector<char> buffer(0);
 
     for( vector<TranslateEntry>::iterator i = translatelist.begin(); i != translatelist.end(); i++) {
         string& replace = i->replacement;
@@ -294,13 +293,17 @@ static cl::extrahelp MoreHelp("\nMore help text...");
 unique_ptr< vector<string> > extract_gplusplus_I(string gplusplus) {
     DFUN();
     FILE    *fp;
-    //string cmdline("LANG=C C:/NXP/bstudio_nxp/sdk/Tools/ba-elf-ba2-r36379/bin/ba-elf-g++ -xc++ -E -v /dev/null 2>&1 >/dev/null");
-    string env_lang( std::getenv("LANG") );
+
+    string env_lang("");
+    if( getenv("LANG") != NULL)
+    {
+	    env_lang = string( getenv("LANG") );
+	    DVAL(env_lang);
+    }
     putenv("LANG=C");
     string cmdline = gplusplus + string(" -xc++ -E -v nul 2>&1 >nul");
-    putenv((string("LANG=")+env_lang).c_str() );
-
     DVAL(cmdline);
+
     if ( (fp=popen(cmdline.c_str(),"r")) !=NULL) {
     }
     else {
@@ -309,7 +312,7 @@ unique_ptr< vector<string> > extract_gplusplus_I(string gplusplus) {
 
     int posix_handle = fileno(fp);
     
-    __gnu_cxx::stdio_filebuf<char> filebuf(posix_handle, std::ios::in);
+    __gnu_cxx::stdio_filebuf<char> filebuf(posix_handle, ios::in);
     istream is(&filebuf);
     string line;
 
@@ -344,6 +347,16 @@ unique_ptr< vector<string> > extract_gplusplus_I(string gplusplus) {
  
     (void) pclose(fp);
 
+    if( env_lang != string("") )
+    {
+	    putenv((string("LANG=")+env_lang).c_str() );
+	    DVAL( getenv("LANG") );
+    }
+    else
+    {
+	    //unsetenv( "LANG" );
+    }
+
     return inclist;
 } 
     
@@ -352,17 +365,19 @@ unique_ptr< vector<string> > extract_args(int argc, const char** argv)
 {
     DFUN();
     unique_ptr< vector<string> > list(new  vector<string> );
-    std::vector<string>& toolargs = *list;
+    vector<string>& toolargs = *list;
 
     string gplusplus;
 
     const char* prev = NULL;
+	string source_file = string("{source_file}");
     for(int i=1; i<argc; i++)
     {
         if(i>0) prev = argv[i-1];
         char* opt = const_cast<char*>(argv[i]);
         int len = strlen(opt);
         DVAL(opt);
+
         if(len < 2)
         {
             continue; //ignore
@@ -407,6 +422,10 @@ unique_ptr< vector<string> > extract_args(int argc, const char** argv)
                 }
                 break;
             case '-':
+                if( string("--source_file").compare(opt) == 0)
+                {
+                    opt = NULL;
+                }
                 break;
             }
             if(opt != NULL)
@@ -418,7 +437,6 @@ unique_ptr< vector<string> > extract_args(int argc, const char** argv)
             }
         }
         else {
-            DVAL(opt);
             if( string("-g++").compare(prev) == 0) {
                 gplusplus = opt;
                 unique_ptr< vector<string> > gppincs = extract_gplusplus_I(gplusplus);
@@ -426,12 +444,23 @@ unique_ptr< vector<string> > extract_args(int argc, const char** argv)
                     toolargs.push_back( string("-extra-arg=-I") + (*gppincs)[i] );
                 }
             }
+            else if( string("--source_file").compare(prev) == 0) {
+                source_file = opt;
+                DVAL(source_file);
+            }
             else if( string("-o").compare(prev) == 0) {
             }
+            else if( string("{source_file}").compare(opt) == 0) {
+                DVAL(source_file);
+                toolargs.push_back(source_file);
+            }
+            else if( string("{includes}").compare(opt) == 0) {
+                //TODO
+            }
             else {
-                DVAL(opt);
                 toolargs.push_back(string(opt) );
             }
+
         }
     }
 
@@ -487,5 +516,5 @@ int main(int argc, const char **argv)
             errs() << "loop() is not found.\n";
             return AppErr;
     }
-    return rc;
+    return 0;
 }
